@@ -1,0 +1,241 @@
+GUARDVIEW: SECURITY CLIENT MANAGEMENT PLATFORM
+Prompt-Based Build Plan for Google AI Studio and Antigravity
+Client Portal | WhatsApp Daily Report Bot | Complaint Ticketing
+
+==============================================================
+1. GOAL AND SUCCESS METRICS
+==============================================================
+
+Problem: Clients phone the company to complain "guard not here" because they cannot see for themselves whether the guard is on site.
+
+Goal: Give clients live, time-stamped proof of guard presence so they stop phoning to complain, and give the company a fast, tracked way to handle the complaints that remain.
+
+Metric                                   Target (first 90 days)
+---------------------------------------  ----------------------
+"Guard not here" phone calls             Down 70%
+Clients who log in at least weekly       60% or more
+Daily WhatsApp reports delivered         95% or more
+Complaint first-response time            Under 30 minutes
+Contract renewal rate                    Up versus last year
+
+"High-converting" here means three things: clients adopt the tool, they trust it, and they renew.
+
+==============================================================
+2. THE KEY DEPENDENCY: GUARD CHECK-IN
+==============================================================
+
+The portal and bot are only as good as the data behind them. Clients cannot see which guard is on site unless something records it. The plan therefore includes a Guard Check-in PWA (a lightweight installable web app) with:
+
+- Clock-in and clock-out with a selfie and GPS, validated against a geofence
+- QR or NFC patrol checkpoints for patrol counts
+- One-tap incident reporting with photo
+- An offline queue that syncs when data returns, since connectivity is unreliable
+
+This is Phase 2 and it cannot be skipped.
+
+==============================================================
+3. ARCHITECTURE AND STACK
+==============================================================
+
+Layer            Choice                                          Why
+---------------  ----------------------------------------------  ---------------------------------------------
+Frontend         Next.js + Tailwind, PWA-enabled                 One codebase for client, guard and admin
+Backend and DB   Firebase (Auth, Firestore, Functions, Storage)  Works well with Google AI Studio/Antigravity
+Scheduler        Cloud Scheduler                                 6pm daily report job
+WhatsApp         Meta WhatsApp Cloud API                         Official, with approved templates
+Notifications    Firebase Cloud Messaging                        Push alerts to admins
+
+Roles: Client, Guard, Supervisor, Admin.
+
+Core collections: clients, sites, guards, shifts, checkins, patrols, checkpoints, incidents, tickets, ticket_messages, daily_reports, notifications_log.
+
+WhatsApp rule: A business-initiated message sent outside a 24-hour window must use a pre-approved template. Submit the daily-report template to Meta in week 1, because approval takes time.
+
+==============================================================
+4. BUILD PHASES WITH PROMPTS
+==============================================================
+
+Run one phase at a time and review it before moving on. In AI Studio, paste the Phase 0 prompt plus the current phase's prompt each time. In Antigravity, save Phase 0 as a project rules file.
+
+--------------------------------------------------------------
+PHASE 0: MASTER CONTEXT PROMPT
+Paste at the start of every session, or save as a rules file.
+--------------------------------------------------------------
+
+You are a senior full-stack engineer building "GuardView", a client management
+platform for a security company. Stack: Next.js (App Router), TypeScript,
+Tailwind, Firebase (Auth, Firestore, Functions, Storage), PWA.
+Roles: client, guard, supervisor, admin.
+Principles: mobile-first, low-bandwidth, offline-tolerant for guards,
+role-based access enforced in Firestore security rules (not only UI),
+all timestamps stored in UTC and shown in the company's local timezone,
+accessible, clean minimal UI.
+For every task: plan first, list files you will create, implement, then
+write tests and a short README section. Never hardcode secrets; use env vars.
+Ask me only if a decision is blocking; otherwise state your assumption.
+
+--------------------------------------------------------------
+PHASE 1: FOUNDATION, AUTH AND DATA MODEL
+--------------------------------------------------------------
+
+Set up the project and implement:
+1) Firebase Auth with email/password and phone OTP.
+2) Custom claims for roles (client, guard, supervisor, admin).
+3) Firestore schema for clients, sites, guards, shifts, checkins, patrols,
+   checkpoints, incidents, tickets, ticket_messages, daily_reports,
+   notifications_log (include field types and indexes).
+4) Firestore security rules: clients can only read data for their own
+   client_id's sites; guards can only write their own checkins/incidents;
+   admins have full access.
+5) Seed script with 3 clients, 6 sites, 10 guards, 7 days of sample data.
+6) Unit tests for the security rules using the Firebase emulator.
+
+--------------------------------------------------------------
+PHASE 2: GUARD CHECK-IN PWA
+The data source for everything else. Do not skip this phase.
+--------------------------------------------------------------
+
+Build the guard PWA at /guard:
+- Login, then "My Shift Today" screen showing assigned site and shift times.
+- Clock-in button: captures GPS and selfie; validates the guard is within
+  the site geofence radius (configurable per site); flags if outside.
+- Late/missed clock-in logic: if no clock-in within 15 minutes of shift
+  start, create an alert record.
+- Patrol: scan QR checkpoint (camera) to log a patrol checkpoint with
+  timestamp; a patrol counts as complete when all site checkpoints are
+  scanned within a configurable time window.
+- Incident report: category, description, photo, severity.
+- Offline queue using IndexedDB; sync automatically when online; show
+  sync status.
+- Large touch targets, works on low-end Android, under 300KB initial JS.
+
+--------------------------------------------------------------
+PHASE 3: CLIENT PORTAL
+--------------------------------------------------------------
+
+Build the client portal at /client:
+- Dashboard per site showing live status card: "Guard on site", guard name
+  and photo, clock-in time, hours on duty, last patrol time, patrols
+  completed today. Status states: On Site (green), Not Yet Arrived (amber,
+  with expected start time), Missed Shift (red, with "we are responding"
+  message and supervisor contact).
+- "Incidents today" list with severity badges and expandable details/photos.
+- 7-day history calendar showing attendance and patrol counts.
+- Real-time updates via Firestore listeners.
+- "Report a problem" button on every site card opening the ticket form.
+- Multi-site clients get a site switcher.
+- Download monthly service report as PDF.
+- Mobile-first, loads under 2 seconds on 3G.
+
+--------------------------------------------------------------
+PHASE 4: COMPLAINT TICKETING SYSTEM
+--------------------------------------------------------------
+
+Build the ticketing system:
+- Client creates a ticket: site, category (Guard absent, Late, Uniform/
+  conduct, Patrol missed, Other), description, optional photo.
+- Auto-link: if category is "Guard absent", automatically attach the
+  current shift and check-in status to the ticket as evidence.
+- Auto-assign to the site's supervisor; SLA timers (first response 30 min,
+  resolution 4 hours) with escalation to admin on breach.
+- Status flow: Open, Acknowledged, In Progress, Resolved, Closed.
+- Threaded messages between client and staff; status change notifications
+  via WhatsApp and email.
+- Admin ticket board (kanban and table view) with filters, search, and SLA
+  breach highlighting.
+- Client satisfaction rating (1-5) on resolution.
+- Audit log of every status change.
+
+--------------------------------------------------------------
+PHASE 5: WHATSAPP BOT (DAILY REPORT AND TWO-WAY)
+--------------------------------------------------------------
+
+Implement a Cloud Function integration with the WhatsApp Cloud API:
+1) Daily 6pm report: scheduled function per client's timezone; for each
+   site compile: guard name, clock-in/out times, patrols done vs. required,
+   incidents count. Send via an approved template, e.g.
+   "Site {{1}}: {{2}}. Guard: {{3}}. Patrols completed: {{4}}.
+   Incidents: {{5}}."
+   Status text is "All clear" if zero incidents and patrols met, otherwise
+   "Attention needed" with a portal link.
+2) Webhook endpoint with signature verification for incoming messages.
+3) Inbound commands: "STATUS" returns live guard status; "COMPLAINT"
+   starts a guided flow that creates a ticket; "REPORT" resends today's
+   report.
+4) Opt-in/opt-out handling and a per-client preference for send time.
+5) Retry with backoff, delivery status tracking in notifications_log, and
+   fallback to email if WhatsApp delivery fails.
+6) Admin screen to preview templates and view delivery logs.
+
+--------------------------------------------------------------
+PHASE 6: ADMIN AND SUPERVISOR DASHBOARD
+--------------------------------------------------------------
+
+Build /admin: live map and list of all sites with status; alerts feed
+(missed clock-ins, geofence violations, SLA breaches); shift roster
+management (assign guards to sites and shifts, CSV import); client and site
+management; guard performance report (attendance rate, patrol completion);
+export to CSV/PDF. Supervisor view limited to their assigned sites.
+
+--------------------------------------------------------------
+PHASE 7: SECURITY, QA AND HARDENING
+--------------------------------------------------------------
+
+Review the entire codebase for: security rule gaps, exposed secrets,
+injection risks, missing input validation, rate limiting on public
+endpoints, and PII handling (guard selfies, client data). Write end-to-end
+tests (Playwright) for: guard clock-in, client sees status, ticket creation
+and resolution, WhatsApp webhook. Add error monitoring, structured
+logging, and a data retention policy (e.g. delete selfies after 90 days).
+Output a findings report with fixes applied.
+
+--------------------------------------------------------------
+PHASE 8: DEPLOYMENT AND PILOT
+--------------------------------------------------------------
+
+Prepare production deployment: environment configs, CI/CD with GitHub
+Actions, Firebase hosting, backups, and a staging environment. Create
+onboarding docs: a one-page guard guide, a one-page client guide, and an
+admin runbook.
+
+==============================================================
+5. TIMELINE
+==============================================================
+
+Weeks   Work
+------  ------------------------------------------------------------
+1       Meta WhatsApp Business verification and template submission;
+        Phases 0 and 1
+2-3     Phase 2 (guard PWA); field-test with 3 guards
+3-4     Phase 3 (client portal)
+4-5     Phase 4 (ticketing)
+5-6     Phase 5 (WhatsApp bot)
+6-7     Phases 6 and 7 (admin dashboard, security and QA)
+8       Pilot with 3-5 friendly clients, then phased rollout
+
+==============================================================
+6. ADOPTION PLAYBOOK
+==============================================================
+
+- Pilot with the loudest complainers first. They benefit most and become advocates.
+- Onboard clients by WhatsApp: send a magic link, so there is no password friction.
+- Make the first value instant: the first message a client gets shows their guard's name and clock-in time.
+- Guard buy-in: frame check-in as protection against false complaints, since time-stamped proof also defends them.
+- Review monthly: send each client a service summary to support renewals.
+
+==============================================================
+7. RISKS AND MITIGATIONS
+==============================================================
+
+- Guards skip check-in, leaving the portal empty or wrong
+  -> Tie payroll or shift confirmation to check-in; supervisor alerts
+- GPS spoofing
+  -> Selfie and QR checkpoints as a second signal; flag anomalies
+- WhatsApp template rejected
+  -> Keep wording factual and utility-focused; submit early; email fallback
+- Poor connectivity
+  -> Offline queue; small bundles; SMS fallback later
+- Privacy of guard and client data
+  -> Role-based rules, retention limits, consent notices
+- AI-generated code drift
+  -> Run Phase 0 context every session; require tests per phase; review each phase before moving on

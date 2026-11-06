@@ -1,0 +1,6 @@
+{
+  "name": "GuardView",
+  "description": "Security client management platform providing live guard presence proof, patrol checkpoints, complaint ticketing, and daily reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isNumeric(val) {
+      return val is int || val is float;
+    }
+
+    // Validation helper for Site
+    function isValidSite(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.address is string && data.address.size() > 0 && data.address.size() <= 200 &&
+             data.clientId is string && data.clientId.size() > 0 &&
+             (!('currentStatus' in data) || data.currentStatus in ['on_site', 'not_arrived', 'missed_shift']) &&
+             (!('geofenceLat' in data) || isNumeric(data.geofenceLat)) &&
+             (!('geofenceLng' in data) || isNumeric(data.geofenceLng)) &&
+             (!('geofenceRadiusMeters' in data) || isNumeric(data.geofenceRadiusMeters)) &&
+             (!('requiredPatrolsPerShift' in data) || data.requiredPatrolsPerShift is int) &&
+             (!('supervisorName' in data) || (data.supervisorName is string && data.supervisorName.size() <= 100)) &&
+             (!('supervisorPhone' in data) || (data.supervisorPhone is string && data.supervisorPhone.size() <= 30)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for Guard
+    function isValidGuard(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.badgeNumber is string && data.badgeNumber.size() > 0 && data.badgeNumber.size() <= 50 &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('assignedSiteId' in data) || (data.assignedSiteId is string && data.assignedSiteId.size() <= 100)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500)) &&
+             (!('status' in data) || data.status in ['on_duty', 'off_duty']) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for Checkin
+    function isValidCheckin(data) {
+      return data.guardId is string && data.guardId.size() > 0 &&
+             data.siteId is string && data.siteId.size() > 0 &&
+             data.type in ['clock_in', 'clock_out'] &&
+             (!('guardName' in data) || (data.guardName is string && data.guardName.size() <= 100)) &&
+             (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
+             (!('lat' in data) || isNumeric(data.lat)) &&
+             (!('lng' in data) || isNumeric(data.lng)) &&
+             (!('isWithinGeofence' in data) || data.isWithinGeofence is bool) &&
+             (!('selfieUrl' in data) || (data.selfieUrl is string && data.selfieUrl.size() <= 500)) &&
+             (!('lateMinutes' in data) || data.lateMinutes is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for Patrol
+    function isValidPatrol(data) {
+      return data.siteId is string && data.siteId.size() > 0 &&
+             data.guardId is string && data.guardId.size() > 0 &&
+             data.status in ['in_progress', 'completed'] &&
+             (!('guardName' in data) || (data.guardName is string && data.guardName.size() <= 100)) &&
+             (!('checkpointsScannedCount' in data) || data.checkpointsScannedCount is int) &&
+             (!('totalCheckpoints' in data) || data.totalCheckpoints is int) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for Incident
+    function isValidIncident(data) {
+      return data.siteId is string && data.siteId.size() > 0 &&
+             data.category in ['trespass', 'damage', 'suspicious', 'equipment', 'gate', 'other'] &&
+             data.severity in ['low', 'medium', 'high', 'critical'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 1000 &&
+             (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
+             (!('guardId' in data) || (data.guardId is string && data.guardId.size() <= 100)) &&
+             (!('guardName' in data) || (data.guardName is string && data.guardName.size() <= 100)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('resolved' in data) || data.resolved is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for Ticket
+    function isValidTicket(data) {
+      return data.siteId is string && data.siteId.size() > 0 &&
+             data.category in ['guard_absent', 'late', 'conduct', 'patrol_missed', 'unattended', 'other'] &&
+             data.status in ['open', 'acknowledged', 'in_progress', 'resolved', 'closed'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 1000 &&
+             (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 100)) &&
+             (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
+             (!('supervisorName' in data) || (data.supervisorName is string && data.supervisorName.size() <= 100)) &&
+             (!('firstResponseTargetMinutes' in data) || data.firstResponseTargetMinutes is int) &&
+             (!('resolutionTargetMinutes' in data) || data.resolutionTargetMinutes is int) &&
+             (!('satisfactionRating' in data) || (data.satisfactionRating is int && data.satisfactionRating >= 0 && data.satisfactionRating <= 5)) &&
+             (!('autoEvidenceText' in data) || (data.autoEvidenceText is string && data.autoEvidenceText.size() <= 1000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    // Validation helper for TicketMessage
+    function isValidTicketMessage(data) {
+      return data.ticketId is string && data.ticketId.size() > 0 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 1000 &&
+             data.senderName is string && data.senderName.size() > 0 && data.senderName.size() <= 100 &&
+             (!('senderId' in data) || (data.senderId is string && data.senderId.size() <= 100)) &&
+             (!('senderRole' in data) || data.senderRole in ['client', 'supervisor', 'admin']) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Validation helper for DailyReport
+    function isValidDailyReport(data) {
+      return data.siteId is string && data.siteId.size() > 0 &&
+             data.date is string && data.date.size() > 0 && data.date.size() <= 20 &&
+             data.statusSummary is string && data.statusSummary.size() <= 500 &&
+             (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
+             (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 100)) &&
+             (!('guardName' in data) || (data.guardName is string && data.guardName.size() <= 100)) &&
+             (!('clockInTime' in data) || (data.clockInTime is string && data.clockInTime.size() <= 50)) &&
+             (!('patrolsCompleted' in data) || data.patrolsCompleted is int) &&
+             (!('patrolsRequired' in data) || data.patrolsRequired is int) &&
+             (!('incidentsCount' in data) || data.incidentsCount is int) &&
+             (!('whatsappDeliveryStatus' in data) || (data.whatsappDeliveryStatus is string && data.whatsappDeliveryStatus.size() <= 50)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Sites Collection
+    match /sites/{siteId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(siteId) && isValidSite(incoming());
+      allow update: if isSignedIn() && isValidId(siteId) && isValidSite(incoming()) &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+
+    // Guards Collection
+    match /guards/{guardId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(guardId) && isValidGuard(incoming());
+      allow update: if isSignedIn() && isValidId(guardId) && isValidGuard(incoming()) &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+
+    // Checkins Collection
+    match /checkins/{checkinId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(checkinId) && isValidCheckin(incoming());
+      allow update, delete: if false;
+    }
+
+    // Patrols Collection
+    match /patrols/{patrolId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(patrolId) && isValidPatrol(incoming());
+      allow update: if isSignedIn() && isValidId(patrolId) && isValidPatrol(incoming()) &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+
+    // Incidents Collection
+    match /incidents/{incidentId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(incidentId) && isValidIncident(incoming());
+      allow update: if isSignedIn() && isValidId(incidentId) && isValidIncident(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['resolved']);
+      allow delete: if false;
+    }
+
+    // Tickets Collection
+    match /tickets/{ticketId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(ticketId) && isValidTicket(incoming());
+      allow update: if isSignedIn() && isValidId(ticketId) && isValidTicket(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'satisfactionRating', 'updatedAt']);
+      allow delete: if false;
+
+      // Subcollection: Ticket Messages
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(messageId) && isValidTicketMessage(incoming());
+        allow update, delete: if false;
+      }
+    }
+
+    // Daily Reports Collection
+    match /daily_reports/{reportId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reportId) && isValidDailyReport(incoming());
+      allow update: if isSignedIn() && isValidId(reportId) && isValidDailyReport(incoming()) &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+  }
+}

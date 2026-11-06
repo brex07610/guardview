@@ -1,0 +1,189 @@
+{
+  "entities": {
+    "Site": {
+      "title": "Site",
+      "description": "A secured client property monitored by GuardView",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "clientId": { "type": "string" },
+        "geofenceLat": { "type": "number" },
+        "geofenceLng": { "type": "number" },
+        "geofenceRadiusMeters": { "type": "number" },
+        "requiredPatrolsPerShift": { "type": "number" },
+        "supervisorName": { "type": "string" },
+        "supervisorPhone": { "type": "string" },
+        "currentStatus": { "type": "string", "enum": ["on_site", "not_arrived", "missed_shift"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "address", "clientId", "createdAt"]
+    },
+    "Guard": {
+      "title": "Guard",
+      "description": "Security guard assigned to sites",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "badgeNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "assignedSiteId": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["on_duty", "off_duty"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "badgeNumber", "createdAt"]
+    },
+    "Checkin": {
+      "title": "Checkin",
+      "description": "Clock-in or clock-out timestamped record with GPS and selfie",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "guardId": { "type": "string" },
+        "guardName": { "type": "string" },
+        "siteId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "type": { "type": "string", "enum": ["clock_in", "clock_out"] },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "isWithinGeofence": { "type": "boolean" },
+        "selfieUrl": { "type": "string" },
+        "lateMinutes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["guardId", "siteId", "type", "createdAt"]
+    },
+    "Patrol": {
+      "title": "Patrol",
+      "description": "Patrol round logging scanned checkpoints",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "siteId": { "type": "string" },
+        "guardId": { "type": "string" },
+        "guardName": { "type": "string" },
+        "checkpointsScannedCount": { "type": "number" },
+        "totalCheckpoints": { "type": "number" },
+        "status": { "type": "string", "enum": ["in_progress", "completed"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["siteId", "guardId", "status", "createdAt"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Incident report created by guard on duty",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "siteId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "guardId": { "type": "string" },
+        "guardName": { "type": "string" },
+        "category": { "type": "string", "enum": ["trespass", "damage", "suspicious", "equipment", "gate", "other"] },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "description": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "resolved": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["siteId", "category", "severity", "description", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Client complaint ticket with SLA tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "siteId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "category": { "type": "string", "enum": ["guard_absent", "late", "conduct", "patrol_missed", "unattended", "other"] },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "acknowledged", "in_progress", "resolved", "closed"] },
+        "supervisorName": { "type": "string" },
+        "firstResponseTargetMinutes": { "type": "number" },
+        "resolutionTargetMinutes": { "type": "number" },
+        "satisfactionRating": { "type": "number" },
+        "autoEvidenceText": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["siteId", "category", "description", "status", "createdAt"]
+    },
+    "TicketMessage": {
+      "title": "TicketMessage",
+      "description": "Threaded message on a complaint ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["client", "supervisor", "admin"] },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ticketId", "message", "senderName", "createdAt"]
+    },
+    "DailyReport": {
+      "title": "DailyReport",
+      "description": "Daily 6pm summary generated for clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "siteId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "clientId": { "type": "string" },
+        "date": { "type": "string" },
+        "guardName": { "type": "string" },
+        "clockInTime": { "type": "string" },
+        "patrolsCompleted": { "type": "number" },
+        "patrolsRequired": { "type": "number" },
+        "incidentsCount": { "type": "number" },
+        "statusSummary": { "type": "string" },
+        "whatsappDeliveryStatus": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["siteId", "date", "statusSummary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/sites/{siteId}": {
+      "schema": "Site",
+      "description": "Guarded sites"
+    },
+    "/guards/{guardId}": {
+      "schema": "Guard",
+      "description": "Security guards registry"
+    },
+    "/checkins/{checkinId}": {
+      "schema": "Checkin",
+      "description": "Clock-in and clock-out logs"
+    },
+    "/patrols/{patrolId}": {
+      "schema": "Patrol",
+      "description": "Patrol rounds and checkpoints"
+    },
+    "/incidents/{incidentId}": {
+      "schema": "Incident",
+      "description": "Incidents logged on site"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "Ticket",
+      "description": "Complaints with SLA timers"
+    },
+    "/tickets/{ticketId}/messages/{messageId}": {
+      "schema": "TicketMessage",
+      "description": "Threaded ticket discussions"
+    },
+    "/daily_reports/{reportId}": {
+      "schema": "DailyReport",
+      "description": "Daily 6pm WhatsApp and portal summaries"
+    }
+  }
+}
